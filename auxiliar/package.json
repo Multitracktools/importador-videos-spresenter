@@ -1,6 +1,6 @@
 {
   "name": "spresenter-importador-auxiliar",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Auxiliar local do Importador de Vídeos para Spresenter",
   "main": "src/main.cjs",
   "author": "Comunidade Spresenter",
@@ -17,6 +17,7 @@
   "build": {
     "appId": "com.comunidade.spresenter.importador.auxiliar",
     "productName": "Auxiliar do Importador para Spresenter",
+    "afterPack": "scripts/after-pack.cjs",
     "asar": true,
     "files": ["src/**/*", "assets/**/*", "package.json"],
     "directories": { "output": "release" },
@@ -34,6 +35,13 @@
       "category": "public.app-category.utilities",
       "artifactName": "Auxiliar-Importador-Spresenter-macOS-${arch}-${version}.${ext}",
       "identity": null
+    },
+    "dmg": {
+      "contents": [
+        { "x": 140, "y": 180 },
+        { "x": 410, "y": 180, "type": "link", "path": "/Applications" },
+        { "x": 275, "y": 360, "type": "file", "path": "scripts/Instalar no Mac.command" }
+      ]
     }
   }
 }

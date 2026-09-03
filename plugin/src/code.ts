@@ -19,7 +19,9 @@ spresenter.ui.onmessage = async (raw: unknown) => {
         filename: safeFilename(msg.title), title: msg.title,
         type: msg.destination === 'backgroundVideo' ? 'backgroundVideo' : 'video',
         contentBase64: msg.contentBase64,
-        optimize: true, allowEncode: true,
+        // O auxiliar já entrega MP4 H.264/AAC. Evita a fila interna de
+        // normalização do Spresenter, que pode não iniciar no macOS.
+        optimize: false, allowEncode: false,
       });
       spresenter.ui.postMessage({ type: 'import-complete', asset, jobId: msg.jobId });
     } catch (error) { spresenter.ui.postMessage({ type: 'import-error', error: error instanceof Error ? error.message : String(error) }); }

@@ -126,7 +126,12 @@ async function initialize() {
   fs.mkdirSync(downloadsDir(), { recursive: true });
   ytdlp = path.join(binDir(), exeName());
   if (!fs.existsSync(ytdlp)) await download(ytdlpUrl(), ytdlp);
-  if (process.platform !== 'win32') fs.chmodSync(ytdlp, 0o755);
+  if (process.platform !== 'win32') {
+    fs.chmodSync(ytdlp, 0o755);
+    // O yt-dlp é baixado na primeira execução. No macOS, remove somente o
+    // atributo de quarentena desse componente para que possa ser executado.
+    try { await run('/usr/bin/xattr', ['-dr', 'com.apple.quarantine', ytdlp], 10000); } catch {}
+  }
   ffmpeg = findFfmpeg();
   ready = true;
 }
