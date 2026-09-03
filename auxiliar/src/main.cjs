@@ -137,9 +137,19 @@ app.whenReady().then(async () => {
   app.setLoginItemSettings({ openAtLogin: true, openAsHidden: true });
   const icon = nativeImage.createFromPath(path.join(__dirname, '..', 'assets', 'tray.png'));
   tray = new Tray(icon.resize({ width: 16, height: 16 }));
-  tray.setToolTip('Auxiliar do Importador para Spresenter');
+  tray.setToolTip('Importador de Vídeos para Spresenter');
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: 'Auxiliar ativo na porta 17843', enabled: false },
+    {
+      label: 'Sobre o aplicativo',
+      click: () => dialog.showMessageBox({
+        type: 'info',
+        title: 'Sobre o aplicativo',
+        message: 'Importador de Vídeos para Spresenter',
+        detail: `Versão ${app.getVersion()}\n\nEste auxiliar trabalha em segundo plano para baixar e preparar vídeos solicitados pelo plugin do Spresenter.\n\nA comunicação acontece somente dentro deste computador. Ele não abre acesso externo à sua rede e não recebe conexões de outros dispositivos.\n\nO processamento dos vídeos é realizado localmente. Use apenas conteúdos que você tenha autorização para baixar.`,
+        buttons: ['Fechar'],
+        noLink: true
+      })
+    },
     { label: 'Iniciar com o sistema', type: 'checkbox', checked: true, click: item => app.setLoginItemSettings({ openAtLogin: item.checked }) },
     { type: 'separator' },
     { label: 'Sair', click: () => { server?.close(); app.quit(); } }

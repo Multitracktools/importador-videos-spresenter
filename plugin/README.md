@@ -1,4 +1,4 @@
-# Importador de Vídeos — protótipo 0.2.0
+# Importador de Vídeos — protótipo 0.2.1
 
 Protótipo experimental para baixar um vídeo por link do YouTube e importá-lo nas categorias **Fundos** ou **Vídeos** do Spresenter.
 
@@ -6,7 +6,7 @@ Protótipo experimental para baixar um vídeo por link do YouTube e importá-lo 
 
 O kit possui duas partes:
 
-1. Instale `Importador-de-Videos-Spresenter-0.2.0.zip` em **Configurações → Plugins → Instalar**.
+1. Instale `Importador-de-Videos-Spresenter-0.2.1.zip` em **Configurações → Plugins → Instalar**.
 2. Instale e abra uma vez o **Auxiliar do Importador para Spresenter** correspondente ao seu sistema.
 3. Nas próximas inicializações, o auxiliar abrirá automaticamente em segundo plano.
 4. Na primeira execução, o auxiliar baixa o `yt-dlp` oficial.
@@ -19,7 +19,7 @@ O kit possui duas partes:
 4. Escolha **Fundos** ou **Vídeos** e a qualidade.
 5. Clique em **Baixar e importar**.
 
-A versão 0.2.0 utiliza um aplicativo auxiliar em segundo plano no Windows ou macOS. Ele usa o FFmpeg incluído no Spresenter, baixa vídeo e áudio separadamente, gera um MP4 e o transfere pelo método Base64 exigido pelo SDK. A opção compatível tenta até 720p.
+A versão 0.2.1 utiliza um aplicativo auxiliar em segundo plano no Windows ou macOS. Ele usa o FFmpeg incluído no Spresenter, baixa vídeo e áudio separadamente, gera um MP4 e o transfere pelo método Base64 exigido pelo SDK. A opção compatível tenta até 720p.
 
 ## Observações
 

@@ -1,6 +1,6 @@
 {
   "name": "spresenter-importador-auxiliar",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Auxiliar local do Importador de Vídeos para Spresenter",
   "main": "src/main.cjs",
   "author": "Comunidade Spresenter",
