@@ -1,0 +1,39 @@
+{
+  "name": "spresenter-importador-auxiliar",
+  "version": "0.2.0",
+  "description": "Auxiliar local do Importador de Vídeos para Spresenter",
+  "main": "src/main.cjs",
+  "author": "Comunidade Spresenter",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dist:win": "electron-builder --win nsis --x64",
+    "dist:mac": "electron-builder --mac dmg --x64 --arm64"
+  },
+  "devDependencies": {
+    "electron": "^38.0.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.comunidade.spresenter.importador.auxiliar",
+    "productName": "Auxiliar do Importador para Spresenter",
+    "asar": true,
+    "files": ["src/**/*", "assets/**/*", "package.json"],
+    "directories": { "output": "release" },
+    "win": { "target": "nsis", "artifactName": "Auxiliar-Importador-Spresenter-Windows-${version}.${ext}" },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": false,
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.utilities",
+      "artifactName": "Auxiliar-Importador-Spresenter-macOS-${arch}-${version}.${ext}",
+      "identity": null
+    }
+  }
+}
