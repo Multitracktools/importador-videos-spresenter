@@ -13,6 +13,7 @@ jobs:
   plugin:
     name: Plugin do Spresenter
     runs-on: ubuntu-latest
+
     defaults:
       run:
         working-directory: plugin
@@ -33,9 +34,11 @@ jobs:
         with:
           name: plugin-spresenter
           path: plugin/release/*.zip
+          if-no-files-found: error
 
   auxiliar:
     name: Auxiliar ${{ matrix.nome }}
+
     strategy:
       fail-fast: false
       matrix:
@@ -72,14 +75,20 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: auxiliar-${{ matrix.nome }}
-          path: auxiliar/release/*
+          path: |
+            auxiliar/release/*.exe
+            auxiliar/release/*.dmg
+          if-no-files-found: error
 
   publicar:
     name: Publicar no GitHub Releases
+
     if: startsWith(github.ref, 'refs/tags/v')
+
     needs:
       - plugin
       - auxiliar
+
     runs-on: ubuntu-latest
 
     steps:
