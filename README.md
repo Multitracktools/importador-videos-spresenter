@@ -25,7 +25,7 @@ Abra **Actions > Gerar versão > Run workflow**. Ao terminar, os arquivos estar�
 
 ## Publicar uma versão
 
-Crie uma tag no formato `v0.2.5`. A automação compilará tudo e criará uma publicação em **Releases** contendo:
+Crie uma tag no formato `v0.2.6`. A automação compilará tudo e criará uma publicação em **Releases** contendo:
 
 - ZIP do plugin;
 - instalador EXE do Windows;

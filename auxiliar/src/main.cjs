@@ -4,6 +4,7 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const crypto = require('crypto');
 const { execFile, spawn } = require('child_process');
 
 const PORT = 17843;
@@ -18,6 +19,9 @@ const jobs = new Map();
 const dataDir = () => app.getPath('userData');
 const binDir = () => path.join(dataDir(), 'bin');
 const downloadsDir = () => path.join(dataDir(), 'downloads');
+const spresenterAssetsDir = () => process.platform === 'win32'
+  ? path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), 'spresenter', 'assets')
+  : path.join(os.homedir(), 'Library', 'Application Support', 'spresenter', 'assets');
 const exeName = () => process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp';
 const ytdlpUrl = () => process.platform === 'win32'
   ? 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe'
@@ -155,6 +159,26 @@ async function handler(req, res) {
         'Cache-Control': 'no-store'
       });
       return fs.createReadStream(job.file).pipe(res);
+    }
+    if (req.method === 'POST' && url.pathname === '/package-video') {
+      const body = await readBody(req);
+      const job = jobs.get(String(body.jobId || ''));
+      if (!job || job.status !== 'ready' || !fs.existsSync(job.file)) throw new Error('O download não está pronto para criar o pacote.');
+      const assets = spresenterAssetsDir();
+      if (!fs.existsSync(assets) || !fs.statSync(assets).isDirectory()) throw new Error(`A pasta de assets do Spresenter não foi encontrada: ${assets}`);
+      const guid = crypto.randomUUID();
+      const temporary = path.join(assets, `.${guid}.importando`);
+      const destination = path.join(assets, guid);
+      fs.mkdirSync(temporary);
+      try {
+        fs.copyFileSync(job.file, path.join(temporary, 'video_NaN.mp4'));
+        fs.writeFileSync(path.join(temporary, 'manifest.json'), JSON.stringify({ title: String(body.title || 'Novo Vídeo'), version: 1, video: ['video_NaN.mp4'] }, null, 2));
+        fs.renameSync(temporary, destination);
+      } catch (error) {
+        try { fs.rmSync(temporary, { recursive: true, force: true }); } catch {}
+        throw error;
+      }
+      return json(res, 200, { guid, title: String(body.title || 'Novo Vídeo'), type: 'video', extension: '.scp', folder: destination });
     }
     const cleanupMatch = url.pathname.match(/^\/cleanup\/([a-f0-9]+)$/);
     if (req.method === 'POST' && cleanupMatch) {

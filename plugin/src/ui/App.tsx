@@ -92,8 +92,28 @@ export function App() {
 
   useEffect(() => {
     if (job?.status !== 'ready' || !info) return;
-    setMessage('Entregando o MP4 ao importador nativo do Spresenter…');
-    postMessage({ type: 'import', jobId: job.id, title: info.title, destination, sourceUrl: `${HELPER}/file/${encodeURIComponent(job.id)}` });
+    let cancelled = false;
+    const finish = async () => {
+      try {
+        setConversionPercent(8);
+        if (destination === 'video') {
+          setMessage('Criando o pacote nativo do Spresenter…');
+          setConversionPercent(45);
+          const asset = await helperRequest('/package-video', 'POST', { jobId: job.id, title: info.title });
+          if (!cancelled) postMessage({ type: 'native-video-complete', jobId: job.id, asset });
+          return;
+        }
+        setMessage('Transferindo o fundo para o Spresenter…');
+        const response = await fetch(`${HELPER}/base64/${encodeURIComponent(job.id)}`);
+        if (!response.ok) throw new Error(`Erro HTTP ${response.status} ao ler o MP4.`);
+        const contentBase64 = await response.text();
+        if (!cancelled) postMessage({ type: 'import-background', jobId: job.id, title: info.title, contentBase64 });
+      } catch (e) {
+        if (!cancelled) { setError(e instanceof Error ? e.message : String(e)); setJob(null); }
+      }
+    };
+    void finish();
+    return () => { cancelled = true; };
   }, [job?.status]);
 
   const validUrl = useMemo(() => /^https?:\/\/(?:www\.)?(?:youtube\.com|youtu\.be)\//i.test(url.trim()), [url]);

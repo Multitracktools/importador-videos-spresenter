@@ -1,13 +1,13 @@
 {
   "id": "com.comunidade.spresenter.importador-videos",
   "name": "Importador de Vídeos",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "Importa vídeos do YouTube diretamente para as categorias Vídeos ou Fundos.",
   "author": "",
   "minAppVersion": "0.3.45",
   "sdk": "0.3.45",
   "main": "dist/code.js",
   "ui": "dist/ui/index.html",
-  "permissions": ["assets:read", "assets:write", "net:connect"],
+  "permissions": ["assets:read", "assets:write"],
   "panels": [{ "id": "main", "title": "Importador de Vídeos", "icon": "video" }]
 }
