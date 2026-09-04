@@ -9,4 +9,6 @@ html, body, #root { min-height: 100%; }
 .progress { height: 9px; overflow: hidden; border-radius: 99px; background: var(--sp-bg-elevated); margin-bottom: 8px; }
 .progress > div { height: 100%; border-radius: inherit; background: linear-gradient(90deg, #5138df, #7a5cff); transition: width .25s ease; }
 .progress-label { justify-content: space-between; color: var(--sp-text-muted); font-size: 12px; margin-bottom: 10px; }
+.phase-label { margin: 0 0 7px; color: var(--sp-text-muted); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+.progress.conversion > div { background: linear-gradient(90deg, #0ea5e9, #34d399); }
 @media (max-width: 460px) { .video-card img { width: 105px; } }

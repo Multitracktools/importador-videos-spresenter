@@ -38,6 +38,7 @@ export function App() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [imported, setImported] = useState<Asset | null>(null);
+  const [conversionPercent, setConversionPercent] = useState<number | null>(null);
 
   useEffect(() => {
     helperRequest('/health').then((data) => {
@@ -64,12 +65,16 @@ export function App() {
         if (msg.job?.status === 'ready') setMessage('Download concluído. Preparando a importação…');
       }
       if (msg.type === 'import-progress') setMessage(msg.message || 'Importando…');
+      if (msg.type === 'conversion-progress') { setConversionPercent(Number(msg.percent || 0)); setMessage(msg.message || 'Processando no Spresenter…'); }
       if (msg.type === 'import-complete') {
         const completedId = msg.jobId;
         if (completedId) helperRequest(`/cleanup/${encodeURIComponent(completedId)}`, 'POST', {}).catch(() => {});
-        setImported(msg.asset); setJob(null); setMessage('Vídeo importado com sucesso.'); setError('');
+        setImported(msg.asset); setJob(null); setConversionPercent(100); setMessage('Vídeo importado com sucesso.'); setError('');
       }
-      if (msg.type === 'import-error') setError(msg.error || 'Falha ao importar no Spresenter.');
+      if (msg.type === 'import-error') {
+        if (msg.jobId) helperRequest(`/cleanup/${encodeURIComponent(msg.jobId)}`, 'POST', {}).catch(() => {});
+        setError(msg.error || 'Falha ao importar no Spresenter.'); setJob(null);
+      }
     });
   }, []);
 
@@ -87,24 +92,8 @@ export function App() {
 
   useEffect(() => {
     if (job?.status !== 'ready' || !info) return;
-    let cancelled = false;
-    const transfer = async () => {
-      try {
-        setMessage('Transferindo o MP4 para o Spresenter…');
-        const response = await fetch(`${HELPER}/base64/${encodeURIComponent(job.id)}`);
-        if (!response.ok) {
-          const detail = await response.json().catch(() => ({}));
-          throw new Error(detail.error || `Erro HTTP ${response.status}`);
-        }
-        const contentBase64 = await response.text();
-        if (!contentBase64) throw new Error('O auxiliar retornou um arquivo vazio.');
-        if (!cancelled) postMessage({ type: 'import', jobId: job.id, title: info.title, destination, contentBase64 });
-      } catch (e) {
-        if (!cancelled) { setError(e instanceof Error ? e.message : String(e)); setJob(null); }
-      }
-    };
-    void transfer();
-    return () => { cancelled = true; };
+    setMessage('Entregando o MP4 ao importador nativo do Spresenter…');
+    postMessage({ type: 'import', jobId: job.id, title: info.title, destination, sourceUrl: `${HELPER}/file/${encodeURIComponent(job.id)}` });
   }, [job?.status]);
 
   const validUrl = useMemo(() => /^https?:\/\/(?:www\.)?(?:youtube\.com|youtu\.be)\//i.test(url.trim()), [url]);
@@ -114,14 +103,14 @@ export function App() {
     catch (e) { setHelperOnline(false); setHelperError(e instanceof Error ? e.message : String(e)); }
   };
   const analyze = async () => {
-    setAnalyzing(true); setError(''); setInfo(null); setImported(null); setJob(null); setMessage('Analisando…');
+    setAnalyzing(true); setError(''); setInfo(null); setImported(null); setJob(null); setConversionPercent(null); setMessage('Analisando…');
     try { setInfo(await helperRequest('/analyze', 'POST', { url: url.trim() })); setHelperOnline(true); setMessage(''); }
     catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setAnalyzing(false); }
   };
   const download = async () => {
-    if (!info) return; setError(''); setImported(null); setMessage('Baixando o vídeo… mantenha o auxiliar aberto.');
-    try { const next = await helperRequest('/download', 'POST', { url: url.trim(), quality }); setJob({ id: next.jobId, status: next.status || 'ready', percent: next.percent || 100 }); setMessage('Download concluído. Preparando a importação…'); }
+    if (!info) return; setError(''); setImported(null); setConversionPercent(null); setMessage('Iniciando o download… mantenha o auxiliar aberto.');
+    try { const next = await helperRequest('/download', 'POST', { url: url.trim(), quality }); setJob({ id: next.jobId, status: next.status || 'downloading', percent: next.percent || 0 }); setMessage('Baixando o vídeo…'); }
     catch (e) { setError(e instanceof Error ? e.message : String(e)); }
   };
 
@@ -148,7 +137,8 @@ export function App() {
       <Button variant="success" disabled={!!job} onClick={download}>Baixar e importar</Button>
     </Panel>}
     {(job || message || error || imported) && <Panel label="Andamento">
-      {job?.status === 'downloading' && <><div className="progress"><div style={{ width: `${Math.max(2, Math.min(100, job.percent || 0))}%` }} /></div><Row className="progress-label"><strong>{Math.round(job.percent || 0)}%</strong><span>{[job.speed, job.eta && `Restante: ${job.eta}`].filter(Boolean).join(' · ')}</span></Row></>}
+      {job?.status === 'downloading' && <><p className="phase-label">1 de 2 · Download</p><div className="progress"><div style={{ width: `${Math.max(2, Math.min(100, job.percent || 0))}%` }} /></div><Row className="progress-label"><strong>{Math.round(job.percent || 0)}%</strong><span>{[job.speed, job.eta && `Restante: ${job.eta}`].filter(Boolean).join(' · ')}</span></Row></>}
+      {conversionPercent !== null && !imported && <><p className="phase-label">2 de 2 · Processamento no Spresenter</p><div className="progress conversion"><div style={{ width: `${Math.max(2, Math.min(100, conversionPercent))}%` }} /></div><Row className="progress-label"><strong>{Math.round(conversionPercent)}%</strong><span>{destination === 'video' ? 'Gerando o pacote .scp' : 'Adicionando aos Fundos'}</span></Row></>}
       {error ? <StatusIndicator state="error" label="Não foi possível concluir" detail={error} /> : <StatusIndicator state={imported ? 'ok' : 'warn'} label={imported ? 'Importação concluída' : message || 'Processando…'} detail={imported?.title} />}
     </Panel>}
   </Root>;

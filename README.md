@@ -25,12 +25,17 @@ Abra **Actions > Gerar versão > Run workflow**. Ao terminar, os arquivos estar�
 
 ## Publicar uma versão
 
-Crie uma tag no formato `v0.2.0`. A automação compilará tudo e criará uma publicação em **Releases** contendo:
+Crie uma tag no formato `v0.2.5`. A automação compilará tudo e criará uma publicação em **Releases** contendo:
 
 - ZIP do plugin;
 - instalador EXE do Windows;
 - DMG do macOS Intel;
 - DMG do macOS Apple Silicon.
+
+## Andamento da importação
+
+- **Download:** porcentagem, velocidade e tempo restante informados pelo `yt-dlp`.
+- **Processamento no Spresenter:** andamento estimado enquanto o aplicativo gera o pacote interno `.scp`. A importação só é confirmada quando esse pacote aparece na biblioteca.
 
 ## Privacidade
 
