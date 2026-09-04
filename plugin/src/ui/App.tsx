@@ -3,7 +3,7 @@ import { postMessage, onMessage } from '@spresenter/plugin-sdk/ui';
 import { Root, Header, Panel, Row, Stack, Field, TextInput, Select, Button, StatusIndicator } from '@spresenter/plugin-sdk/ui-kit/react';
 
 type VideoInfo = { title: string; uploader?: string; thumbnail?: string; duration?: number };
-type Job = { id: string; status: 'downloading' | 'ready' | 'error'; percent?: number; speed?: string; eta?: string; error?: string };
+type Job = { id: string; status: 'downloading' | 'ready' | 'error'; percent?: number; speed?: string; eta?: string; error?: string; importPercent?: number; importStatus?: string };
 type Asset = { guid: string; title?: string; type?: string };
 const HELPER = 'http://127.0.0.1:17843';
 
@@ -98,9 +98,20 @@ export function App() {
         setConversionPercent(8);
         if (destination === 'video') {
           setMessage('Criando o pacote nativo do Spresenter…');
-          setConversionPercent(45);
-          const asset = await helperRequest('/package-video', 'POST', { jobId: job.id, title: info.title });
-          if (!cancelled) postMessage({ type: 'native-video-complete', jobId: job.id, asset });
+          setConversionPercent(5);
+          const progressTimer = window.setInterval(() => {
+            helperRequest(`/jobs/${encodeURIComponent(job.id)}`).then((current) => {
+              if (cancelled || current.importPercent === undefined) return;
+              setConversionPercent(current.importPercent);
+              setMessage(current.importStatus === 'registering' ? 'Registrando o vídeo na biblioteca…' : 'Enviando o vídeo ao Spresenter…');
+            }).catch(() => {});
+          }, 500);
+          try {
+            const asset = await helperRequest('/package-video', 'POST', { jobId: job.id, title: info.title });
+            if (!cancelled) postMessage({ type: 'native-video-complete', jobId: job.id, asset });
+          } finally {
+            window.clearInterval(progressTimer);
+          }
           return;
         }
         setMessage('Transferindo o fundo para o Spresenter…');

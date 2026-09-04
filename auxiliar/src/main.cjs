@@ -4,7 +4,6 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const crypto = require('crypto');
 const { execFile, spawn } = require('child_process');
 
 const PORT = 17843;
@@ -19,9 +18,6 @@ const jobs = new Map();
 const dataDir = () => app.getPath('userData');
 const binDir = () => path.join(dataDir(), 'bin');
 const downloadsDir = () => path.join(dataDir(), 'downloads');
-const spresenterAssetsDir = () => process.platform === 'win32'
-  ? path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), 'spresenter', 'assets')
-  : path.join(os.homedir(), 'Library', 'Application Support', 'spresenter', 'assets');
 const exeName = () => process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp';
 const ytdlpUrl = () => process.platform === 'win32'
   ? 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe'
@@ -103,6 +99,67 @@ function json(res, status, value) { send(res, status, JSON.stringify(value)); }
 function readBody(req) { return new Promise((resolve, reject) => { let body = ''; req.on('data', c => { body += c; if (body.length > 1024 * 1024) req.destroy(); }); req.on('end', () => { try { resolve(body ? JSON.parse(body) : {}); } catch (e) { reject(e); } }); req.on('error', reject); }); }
 function safeTitle(value) { return String(value || 'video').replace(/[<>:"/\\|?*\x00-\x1f]/g, '').slice(0, 120); }
 
+function spresenterJson(method, route, payload) {
+  return new Promise((resolve, reject) => {
+    const body = Buffer.from(JSON.stringify(payload));
+    const request = http.request({ hostname: '127.0.0.1', port: 5050, path: route, method, headers: { 'Content-Type': 'application/json', 'Content-Length': body.length } }, response => {
+      const chunks = [];
+      response.on('data', chunk => chunks.push(chunk));
+      response.on('end', () => {
+        const raw = Buffer.concat(chunks).toString('utf8');
+        let data;
+        try { data = raw ? JSON.parse(raw) : {}; } catch { data = { message: raw }; }
+        if (response.statusCode < 200 || response.statusCode >= 300) return reject(new Error(data.message || data.error || `Spresenter respondeu HTTP ${response.statusCode}.`));
+        resolve(data);
+      });
+    });
+    request.setTimeout(10 * 60 * 1000, () => request.destroy(new Error('O Spresenter demorou demais para processar o vídeo.')));
+    request.on('error', error => reject(new Error(`Não foi possível comunicar com o Spresenter. Confirme que ele está aberto. ${error.message}`)));
+    request.end(body);
+  });
+}
+
+function createNativeVideo(filePath, title, onProgress) {
+  return new Promise((resolve, reject) => {
+    const boundary = `----SpresenterImporter${Date.now().toString(16)}`;
+    const fields = [
+      ['title', String(title || 'Novo Vídeo')],
+      ['optimize', 'false'],
+      ['allowEncode', 'false']
+    ];
+    const fieldParts = fields.map(([name, value]) => Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${value}\r\n`));
+    // Sem sublinhado no nome: a rotina nativa atribui a primeira saída como video_0.mp4.
+    const fileHeader = Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="files"; filename="video.mp4"\r\nContent-Type: video/mp4\r\n\r\n`);
+    const closing = Buffer.from(`\r\n--${boundary}--\r\n`);
+    const fileSize = fs.statSync(filePath).size;
+    const total = fieldParts.reduce((sum, part) => sum + part.length, 0) + fileHeader.length + fileSize + closing.length;
+    let sent = 0;
+    const request = http.request({ hostname: '127.0.0.1', port: 5050, path: '/asset/videoPresentation', method: 'POST', headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}`, 'Content-Length': total } }, response => {
+      const chunks = [];
+      response.on('data', chunk => chunks.push(chunk));
+      response.on('end', () => {
+        const raw = Buffer.concat(chunks).toString('utf8');
+        let data;
+        try { data = raw ? JSON.parse(raw) : {}; } catch { data = { message: raw }; }
+        if (response.statusCode < 200 || response.statusCode >= 300) return reject(new Error(data.message || data.error || `Spresenter respondeu HTTP ${response.statusCode}.`));
+        resolve(data);
+      });
+    });
+    request.setTimeout(10 * 60 * 1000, () => request.destroy(new Error('O Spresenter demorou demais para criar o pacote de vídeo.')));
+    request.on('error', error => reject(new Error(`Não foi possível enviar o vídeo ao Spresenter. Confirme que ele está aberto. ${error.message}`)));
+    for (const part of fieldParts) { request.write(part); sent += part.length; }
+    request.write(fileHeader); sent += fileHeader.length;
+    const source = fs.createReadStream(filePath);
+    source.on('data', chunk => {
+      sent += chunk.length;
+      onProgress(Math.max(5, Math.min(90, Math.round((sent / total) * 90))));
+    });
+    source.on('error', error => request.destroy(error));
+    source.on('end', () => request.end(closing));
+    source.pipe(request, { end: false });
+  });
+}
+
 async function handler(req, res) {
   if (req.method === 'OPTIONS') return json(res, 200, { ok: true });
   const url = new URL(req.url, `http://127.0.0.1:${PORT}`);
@@ -164,21 +221,21 @@ async function handler(req, res) {
       const body = await readBody(req);
       const job = jobs.get(String(body.jobId || ''));
       if (!job || job.status !== 'ready' || !fs.existsSync(job.file)) throw new Error('O download não está pronto para criar o pacote.');
-      const assets = spresenterAssetsDir();
-      if (!fs.existsSync(assets) || !fs.statSync(assets).isDirectory()) throw new Error(`A pasta de assets do Spresenter não foi encontrada: ${assets}`);
-      const guid = crypto.randomUUID();
-      const temporary = path.join(assets, `.${guid}.importando`);
-      const destination = path.join(assets, guid);
-      fs.mkdirSync(temporary);
-      try {
-        fs.copyFileSync(job.file, path.join(temporary, 'video_NaN.mp4'));
-        fs.writeFileSync(path.join(temporary, 'manifest.json'), JSON.stringify({ title: String(body.title || 'Novo Vídeo'), version: 1, video: ['video_NaN.mp4'] }, null, 2));
-        fs.renameSync(temporary, destination);
-      } catch (error) {
-        try { fs.rmSync(temporary, { recursive: true, force: true }); } catch {}
-        throw error;
-      }
-      return json(res, 200, { guid, title: String(body.title || 'Novo Vídeo'), type: 'video', extension: '.scp', folder: destination });
+      job.importPercent = 5;
+      job.importStatus = 'uploading';
+      const created = await createNativeVideo(job.file, body.title, percent => { job.importPercent = percent; });
+      job.importPercent = 94;
+      job.importStatus = 'registering';
+      // Este segundo pedido é indispensável: ele grava o asset no catálogo do
+      // Spresenter. Somente criar a pasta deixa o vídeo como "arquivo sem dono".
+      const saved = await spresenterJson('POST', `/asset/videoPresentation/${encodeURIComponent(created.guid)}/save`, {
+        ...created,
+        title: String(body.title || created.title || 'Novo Vídeo'),
+        parent: 'root'
+      });
+      job.importPercent = 100;
+      job.importStatus = 'done';
+      return json(res, 200, saved);
     }
     const cleanupMatch = url.pathname.match(/^\/cleanup\/([a-f0-9]+)$/);
     if (req.method === 'POST' && cleanupMatch) {
