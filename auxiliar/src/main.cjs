@@ -193,7 +193,14 @@ function findFfmpeg() {
 
 function send(res, status, body, type = 'application/json; charset=utf-8') {
   const content = Buffer.isBuffer(body) ? body : Buffer.from(body);
-  res.writeHead(status, { 'Content-Type': type, 'Content-Length': content.length, 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Cache-Control': 'no-store' });
+  res.writeHead(status, {
+    'Content-Type': type,
+    'Content-Length': content.length,
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+    'Cache-Control': 'no-store'
+  });
   res.end(content);
 }
 function json(res, status, value) { send(res, status, JSON.stringify(value)); }
