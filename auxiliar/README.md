@@ -21,5 +21,6 @@ O instalador do macOS é experimental e não assinado. Na primeira abertura, pod
 - Baixa diretamente os fundos escolhidos nos resultados do Pixabay.
 - Guarda localmente a chave pessoal do Pexels, mostra os créditos dos autores e mantém as pesquisas em cache por 24 horas.
 - Baixa diretamente os fundos escolhidos nos resultados do Pexels.
+- Filtra Pixabay e Pexels para vídeos horizontais em HD, Full HD, 4K ou na melhor resolução disponível.
 
 Use apenas conteúdos que você tenha autorização para baixar.

@@ -207,6 +207,22 @@ function json(res, status, value) { send(res, status, JSON.stringify(value)); }
 function readBody(req) { return new Promise((resolve, reject) => { let body = ''; req.on('data', c => { body += c; if (body.length > 1024 * 1024) req.destroy(); }); req.on('end', () => { try { resolve(body ? JSON.parse(body) : {}); } catch (e) { reject(e); } }); req.on('error', reject); }); }
 function safeTitle(value) { return String(value || 'video').replace(/[<>:"/\\|?*\x00-\x1f]/g, '').slice(0, 120); }
 
+function resolutionRequirement(value) {
+  if (value === '720') return { width: 1280, height: 720 };
+  if (value === '2160') return { width: 3840, height: 2160 };
+  if (value === 'best') return { width: 0, height: 0 };
+  return { width: 1920, height: 1080 };
+}
+
+function selectLandscapeVariants(variants, resolution) {
+  const minimum = resolutionRequirement(resolution);
+  return variants
+    .filter(item => item.url && item.width > item.height && item.width >= minimum.width && item.height >= minimum.height)
+    .sort((a, b) => resolution === 'best'
+      ? (b.width * b.height) - (a.width * a.height)
+      : (a.width * a.height) - (b.width * b.height));
+}
+
 function spresenterJson(method, route, payload) {
   return new Promise((resolve, reject) => {
     const body = Buffer.from(JSON.stringify(payload));
@@ -331,8 +347,9 @@ async function handler(req, res) {
       if (!apiKey) return json(res, 428, { error: 'Configure sua chave do Pixabay antes de pesquisar.' });
       const query = String(url.searchParams.get('q') || '').trim().slice(0, 100);
       const page = Math.max(1, Math.min(25, Number(url.searchParams.get('page') || 1) || 1));
+      const resolution = ['720', '1080', '2160', 'best'].includes(url.searchParams.get('resolution')) ? url.searchParams.get('resolution') : '1080';
       if (!query) throw new Error('Digite algo para pesquisar no Pixabay.');
-      const cacheKey = `${query.toLocaleLowerCase('pt-BR')}|${page}`;
+      const cacheKey = `${query.toLocaleLowerCase('pt-BR')}|${page}|${resolution}`;
       const cache = readJsonFile(pixabayCacheFile(), {});
       const cached = cache[cacheKey];
       if (cached && Date.now() - cached.savedAt < PIXABAY_CACHE_MAX_AGE) return json(res, 200, { ...cached.data, cached: true });
@@ -342,8 +359,9 @@ async function handler(req, res) {
       endpoint.searchParams.set('lang', 'pt');
       endpoint.searchParams.set('video_type', 'all');
       endpoint.searchParams.set('category', 'backgrounds');
-      endpoint.searchParams.set('min_width', '1280');
-      endpoint.searchParams.set('min_height', '720');
+      const minimum = resolutionRequirement(resolution);
+      if (minimum.width) endpoint.searchParams.set('min_width', String(minimum.width));
+      if (minimum.height) endpoint.searchParams.set('min_height', String(minimum.height));
       endpoint.searchParams.set('safesearch', 'true');
       endpoint.searchParams.set('order', 'popular');
       endpoint.searchParams.set('page', String(page));
@@ -353,7 +371,7 @@ async function handler(req, res) {
         total: Number(result.totalHits || 0), page,
         items: (result.hits || []).map(hit => ({
           id: hit.id, pageURL: hit.pageURL, tags: hit.tags, duration: hit.duration, user: hit.user,
-          variants: ['small', 'medium', 'large'].map(name => ({ name, ...(hit.videos?.[name] || {}) })).filter(item => item.url && item.width >= 1280)
+          variants: selectLandscapeVariants(['small', 'medium', 'large'].map(name => ({ name, ...(hit.videos?.[name] || {}) })), resolution)
         })).filter(item => item.variants.length)
       };
       cache[cacheKey] = { savedAt: Date.now(), data };
@@ -378,14 +396,17 @@ async function handler(req, res) {
       if (!apiKey) return json(res, 428, { error: 'Configure sua chave do Pexels antes de pesquisar.' });
       const query = String(url.searchParams.get('q') || '').trim().slice(0, 100);
       const page = Math.max(1, Math.min(80, Number(url.searchParams.get('page') || 1) || 1));
+      const resolution = ['720', '1080', '2160', 'best'].includes(url.searchParams.get('resolution')) ? url.searchParams.get('resolution') : '1080';
       if (!query) throw new Error('Digite algo para pesquisar no Pexels.');
-      const cacheKey = `${query.toLocaleLowerCase('pt-BR')}|${page}`;
+      const cacheKey = `${query.toLocaleLowerCase('pt-BR')}|${page}|${resolution}`;
       const cache = readJsonFile(pexelsCacheFile(), {});
       const cached = cache[cacheKey];
       if (cached && Date.now() - cached.savedAt < PEXELS_CACHE_MAX_AGE) return json(res, 200, { ...cached.data, cached: true });
       const endpoint = new URL('https://api.pexels.com/v1/videos/search');
       endpoint.searchParams.set('query', query);
       endpoint.searchParams.set('locale', 'pt-BR');
+      endpoint.searchParams.set('orientation', 'landscape');
+      if (resolution !== 'best') endpoint.searchParams.set('size', resolution === '2160' ? 'large' : resolution === '1080' ? 'medium' : 'small');
       endpoint.searchParams.set('page', String(page));
       endpoint.searchParams.set('per_page', '12');
       const result = await requestJson(endpoint, { headers: { Authorization: apiKey }, rateLimitMessage: 'O limite de pesquisas da sua chave do Pexels foi atingido.' });
@@ -401,14 +422,9 @@ async function handler(req, res) {
           height: video.height,
           user: video.user?.name || 'Autor do Pexels',
           userURL: video.user?.url || '',
-          variants: (video.video_files || [])
+          variants: selectLandscapeVariants((video.video_files || [])
             .filter(file => file.file_type === 'video/mp4' && file.link && file.width && file.height)
-            .map(file => ({ name: file.quality || 'mp4', url: file.link, width: file.width, height: file.height, size: 0 }))
-            .sort((a, b) => {
-              const aPreferred = a.width >= 1280 && a.width > a.height ? 1 : 0;
-              const bPreferred = b.width >= 1280 && b.width > b.height ? 1 : 0;
-              return bPreferred - aPreferred || Math.abs(a.width - 1280) - Math.abs(b.width - 1280);
-            })
+            .map(file => ({ name: file.quality || 'mp4', url: file.link, width: file.width, height: file.height, size: 0 })), resolution)
         })).filter(item => item.variants.length)
       };
       cache[cacheKey] = { savedAt: Date.now(), data };

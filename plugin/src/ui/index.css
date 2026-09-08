@@ -25,6 +25,8 @@ html, body, #root { min-height: 100%; }
 .license-notice > span { color: var(--sp-text-muted); }
 .pexels-license { border-color: rgba(16, 185, 129, .3); }
 .search-tip { margin-top: -4px; }
+.search-row { align-items: center; }
+.search-row > .sp-select { width: 170px; flex: 0 0 170px; }
 .license-details { width: 100%; margin-top: 3px; padding-top: 8px; border-top: 1px solid rgba(148, 163, 184, .14); color: var(--sp-text-muted); }
 .license-details p { margin: 0 0 6px; }
 .link-button { border: 0; padding: 2px; color: #a78bfa; background: transparent; font: inherit; font-size: 11px; cursor: pointer; }
@@ -46,5 +48,5 @@ html, body, #root { min-height: 100%; }
 .pixabay-card-body .sp-btn { margin-top: 3px; }
 .card-link { padding: 0; text-align: center; font-size: 11px; }
 .pagination { justify-content: center; align-items: center; gap: 12px; margin-top: 12px; color: var(--sp-text-muted); font-size: 12px; }
-@media (max-width: 700px) { .pixabay-grid.columns-3, .pixabay-grid.columns-4, .pixabay-grid.columns-5 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 700px) { .search-row { flex-wrap: wrap; } .search-row > div:first-child { flex-basis: 100% !important; } .search-row > .sp-select { flex: 1 1 150px; } .pixabay-grid.columns-3, .pixabay-grid.columns-4, .pixabay-grid.columns-5 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 460px) { .source-tabs { grid-template-columns: 1fr; } .video-card img { width: 105px; } .pixabay-grid, .pixabay-grid.columns-2, .pixabay-grid.columns-3, .pixabay-grid.columns-4, .pixabay-grid.columns-5 { grid-template-columns: 1fr; } }
