@@ -1,4 +1,4 @@
-const { app, Tray, Menu, nativeImage, dialog } = require('electron');
+const { app, Tray, Menu, nativeImage, dialog, shell } = require('electron');
 const http = require('http');
 const https = require('https');
 const fs = require('fs');
@@ -253,6 +253,15 @@ async function handler(req, res) {
     }
     if (req.method === 'GET' && url.pathname === '/pixabay/settings') {
       return json(res, 200, { configured: !!pixabayKey() });
+    }
+    if (req.method === 'POST' && url.pathname === '/open-external') {
+      const body = await readBody(req);
+      const target = new URL(String(body.url || ''));
+      if (target.protocol !== 'https:' || (target.hostname !== 'pixabay.com' && !target.hostname.endsWith('.pixabay.com'))) {
+        throw new Error('Este endereço externo não é permitido.');
+      }
+      await shell.openExternal(target.toString());
+      return json(res, 200, { ok: true });
     }
     if (req.method === 'POST' && url.pathname === '/pixabay/settings') {
       const body = await readBody(req);

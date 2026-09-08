@@ -16,8 +16,9 @@ html, body, #root { min-height: 100%; }
 .source-tabs button.active { color: var(--sp-text); background: rgba(122, 92, 255, .22); }
 .source-tabs button:disabled { opacity: .55; cursor: not-allowed; }
 .pixabay-intro { margin-top: 0; }
-.external-link, .pixabay-credit a, .pixabay-card a { color: #a78bfa; text-decoration: none; }
+.external-link, .inline-link, .card-link { border: 0; color: #a78bfa; background: transparent; font: inherit; cursor: pointer; }
 .external-link { display: inline-flex; align-items: center; padding: 0 6px; font-size: 12px; }
+.inline-link { padding: 0; font-size: inherit; }
 .pixabay-credit { justify-content: space-between; align-items: center; margin: 0; color: var(--sp-text-muted); font-size: 11px; }
 .link-button { border: 0; padding: 2px; color: #a78bfa; background: transparent; font: inherit; font-size: 11px; cursor: pointer; }
 .empty-state { margin: 0; color: var(--sp-text-muted); font-size: 12px; text-align: center; }
@@ -26,8 +27,8 @@ html, body, #root { min-height: 100%; }
 .pixabay-card > img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: #090b0f; }
 .pixabay-card-body { display: flex; flex-direction: column; gap: 5px; padding: 9px; min-width: 0; }
 .pixabay-card-body strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-transform: capitalize; }
-.pixabay-card-body span, .pixabay-card-body a { color: var(--sp-text-muted); font-size: 11px; }
+.pixabay-card-body span { color: var(--sp-text-muted); font-size: 11px; }
 .pixabay-card-body .sp-btn { margin-top: 3px; }
-.pixabay-card-body a { text-align: center; }
+.card-link { padding: 0; text-align: center; font-size: 11px; }
 .pagination { justify-content: center; align-items: center; gap: 12px; margin-top: 12px; color: var(--sp-text-muted); font-size: 12px; }
 @media (max-width: 460px) { .video-card img { width: 105px; } .pixabay-grid { grid-template-columns: 1fr; } }
