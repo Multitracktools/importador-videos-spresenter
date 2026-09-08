@@ -1,8 +1,8 @@
 {
   "id": "com.comunidade.spresenter.importador-videos",
   "name": "Importador de Vídeos",
-  "version": "0.3.0",
-  "description": "Importa vídeos do YouTube e encontra fundos gratuitos no Pixabay.",
+  "version": "0.3.1",
+  "description": "Importa vídeos do YouTube e encontra fundos gratuitos no Pixabay e no Pexels.",
   "author": "",
   "minAppVersion": "0.3.45",
   "sdk": "0.3.45",

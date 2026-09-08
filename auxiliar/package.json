@@ -1,6 +1,6 @@
 {
   "name": "spresenter-importador-auxiliar",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Auxiliar local do Importador de Vídeos para Spresenter",
   "main": "src/main.cjs",
   "author": "Comunidade Spresenter",
@@ -19,9 +19,18 @@
     "productName": "Auxiliar do Importador para Spresenter",
     "afterPack": "scripts/after-pack.cjs",
     "asar": true,
-    "files": ["src/**/*", "assets/**/*", "package.json"],
-    "directories": { "output": "release" },
-    "win": { "target": "nsis", "artifactName": "Auxiliar-Importador-Spresenter-Windows-${version}.${ext}" },
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": "nsis",
+      "artifactName": "Auxiliar-Importador-Spresenter-Windows-${version}.${ext}"
+    },
     "nsis": {
       "oneClick": false,
       "perMachine": false,
@@ -38,9 +47,22 @@
     },
     "dmg": {
       "contents": [
-        { "x": 140, "y": 180 },
-        { "x": 410, "y": 180, "type": "link", "path": "/Applications" },
-        { "x": 275, "y": 360, "type": "file", "path": "scripts/Instalar no Mac.command" }
+        {
+          "x": 140,
+          "y": 180
+        },
+        {
+          "x": 410,
+          "y": 180,
+          "type": "link",
+          "path": "/Applications"
+        },
+        {
+          "x": 275,
+          "y": 360,
+          "type": "file",
+          "path": "scripts/Instalar no Mac.command"
+        }
       ]
     }
   }

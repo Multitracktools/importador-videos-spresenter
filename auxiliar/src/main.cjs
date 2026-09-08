@@ -8,6 +8,7 @@ const { execFile, spawn } = require('child_process');
 
 const PORT = 17843;
 const PIXABAY_CACHE_MAX_AGE = 24 * 60 * 60 * 1000;
+const PEXELS_CACHE_MAX_AGE = 24 * 60 * 60 * 1000;
 let tray;
 let server;
 let ready = false;
@@ -21,6 +22,8 @@ const binDir = () => path.join(dataDir(), 'bin');
 const downloadsDir = () => path.join(dataDir(), 'downloads');
 const pixabaySettingsFile = () => path.join(dataDir(), 'pixabay.json');
 const pixabayCacheFile = () => path.join(dataDir(), 'pixabay-cache.json');
+const pexelsSettingsFile = () => path.join(dataDir(), 'pexels.json');
+const pexelsCacheFile = () => path.join(dataDir(), 'pexels-cache.json');
 const exeName = () => process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp';
 const ytdlpUrl = () => process.platform === 'win32'
   ? 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe'
@@ -56,25 +59,29 @@ function pixabayKey() {
   return String(readJsonFile(pixabaySettingsFile(), {}).apiKey || '').trim();
 }
 
-function requestJson(url, redirects = 0) {
+function pexelsKey() {
+  return String(readJsonFile(pexelsSettingsFile(), {}).apiKey || '').trim();
+}
+
+function requestJson(url, options = {}, redirects = 0) {
   return new Promise((resolve, reject) => {
-    if (redirects > 5) return reject(new Error('Redirecionamentos demais ao acessar o Pixabay.'));
-    https.get(url, { headers: { 'User-Agent': 'Spresenter-Video-Importer/0.3.0' } }, response => {
+    if (redirects > 5) return reject(new Error('Redirecionamentos demais ao acessar o serviço de vídeos.'));
+    https.get(url, { headers: { 'User-Agent': 'Spresenter-Video-Importer/0.3.1', ...(options.headers || {}) } }, response => {
       if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
         response.resume();
-        return requestJson(new URL(response.headers.location, url).toString(), redirects + 1).then(resolve, reject);
+        return requestJson(new URL(response.headers.location, url).toString(), options, redirects + 1).then(resolve, reject);
       }
       const chunks = [];
       response.on('data', chunk => chunks.push(chunk));
       response.on('end', () => {
         const raw = Buffer.concat(chunks).toString('utf8');
         if (response.statusCode < 200 || response.statusCode >= 300) {
-          const message = response.statusCode === 429 ? 'O limite temporário de pesquisas do Pixabay foi atingido. Aguarde um minuto.' : raw;
-          return reject(new Error(message || `Pixabay respondeu HTTP ${response.statusCode}.`));
+          const message = response.statusCode === 429 ? (options.rateLimitMessage || 'O limite temporário de pesquisas foi atingido. Tente novamente mais tarde.') : raw;
+          return reject(new Error(message || `O serviço respondeu HTTP ${response.statusCode}.`));
         }
-        try { resolve(JSON.parse(raw)); } catch { reject(new Error('O Pixabay retornou uma resposta inválida.')); }
+        try { resolve(JSON.parse(raw)); } catch { reject(new Error('O serviço retornou uma resposta inválida.')); }
       });
-    }).on('error', error => reject(new Error(`Não foi possível acessar o Pixabay. ${error.message}`)));
+    }).on('error', error => reject(new Error(`Não foi possível acessar o serviço de vídeos. ${error.message}`)));
   });
 }
 
@@ -85,18 +92,31 @@ function isPixabayVideoUrl(value) {
   } catch { return false; }
 }
 
-function startDirectDownload(job, url, redirects = 0) {
+function isPexelsVideoUrl(value) {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === 'https:' && (
+      parsed.hostname === 'pexels.com' || parsed.hostname.endsWith('.pexels.com') ||
+      parsed.hostname === 'vimeo.com' || parsed.hostname.endsWith('.vimeo.com') ||
+      parsed.hostname === 'akamaized.net' || parsed.hostname.endsWith('.akamaized.net')
+    );
+  } catch { return false; }
+}
+
+function startDirectDownload(job, url, provider = 'pixabay', redirects = 0) {
   if (redirects > 5) return Object.assign(job, { status: 'error', error: 'Redirecionamentos demais ao baixar o vídeo.' });
-  const request = https.get(url, { headers: { 'User-Agent': 'Spresenter-Video-Importer/0.3.0' } }, response => {
+  const allowed = provider === 'pexels' ? isPexelsVideoUrl : isPixabayVideoUrl;
+  const label = provider === 'pexels' ? 'Pexels' : 'Pixabay';
+  const request = https.get(url, { headers: { 'User-Agent': 'Spresenter-Video-Importer/0.3.1' } }, response => {
     if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
       response.resume();
       const next = new URL(response.headers.location, url).toString();
-      if (!isPixabayVideoUrl(next)) return Object.assign(job, { status: 'error', error: 'O Pixabay redirecionou para um endereço não permitido.' });
-      return startDirectDownload(job, next, redirects + 1);
+      if (!allowed(next)) return Object.assign(job, { status: 'error', error: `O ${label} redirecionou para um endereço não permitido.` });
+      return startDirectDownload(job, next, provider, redirects + 1);
     }
     if (response.statusCode !== 200) {
       response.resume();
-      return Object.assign(job, { status: 'error', error: `Falha ao baixar do Pixabay: HTTP ${response.statusCode}.` });
+      return Object.assign(job, { status: 'error', error: `Falha ao baixar do ${label}: HTTP ${response.statusCode}.` });
     }
     const total = Number(response.headers['content-length'] || 0);
     let received = 0;
@@ -254,10 +274,14 @@ async function handler(req, res) {
     if (req.method === 'GET' && url.pathname === '/pixabay/settings') {
       return json(res, 200, { configured: !!pixabayKey() });
     }
+    if (req.method === 'GET' && url.pathname === '/pexels/settings') {
+      return json(res, 200, { configured: !!pexelsKey() });
+    }
     if (req.method === 'POST' && url.pathname === '/open-external') {
       const body = await readBody(req);
       const target = new URL(String(body.url || ''));
-      if (target.protocol !== 'https:' || (target.hostname !== 'pixabay.com' && !target.hostname.endsWith('.pixabay.com'))) {
+      const allowedHost = ['pixabay.com', 'pexels.com'].some(host => target.hostname === host || target.hostname.endsWith(`.${host}`));
+      if (target.protocol !== 'https:' || !allowedHost) {
         throw new Error('Este endereço externo não é permitido.');
       }
       await shell.openExternal(target.toString());
@@ -278,6 +302,21 @@ async function handler(req, res) {
     }
     if (req.method === 'DELETE' && url.pathname === '/pixabay/settings') {
       if (fs.existsSync(pixabaySettingsFile())) fs.unlinkSync(pixabaySettingsFile());
+      return json(res, 200, { configured: false });
+    }
+    if (req.method === 'POST' && url.pathname === '/pexels/settings') {
+      const body = await readBody(req);
+      const apiKey = String(body.apiKey || '').trim();
+      if (!apiKey || apiKey.length > 300) throw new Error('Informe uma chave válida do Pexels.');
+      const check = new URL('https://api.pexels.com/v1/videos/search');
+      check.searchParams.set('query', 'natureza');
+      check.searchParams.set('per_page', '1');
+      await requestJson(check, { headers: { Authorization: apiKey }, rateLimitMessage: 'O limite de pesquisas da sua chave do Pexels foi atingido.' });
+      writePrivateJson(pexelsSettingsFile(), { apiKey });
+      return json(res, 200, { configured: true });
+    }
+    if (req.method === 'DELETE' && url.pathname === '/pexels/settings') {
+      if (fs.existsSync(pexelsSettingsFile())) fs.unlinkSync(pexelsSettingsFile());
       return json(res, 200, { configured: false });
     }
     if (req.method === 'GET' && url.pathname === '/pixabay/search') {
@@ -325,6 +364,61 @@ async function handler(req, res) {
       const job = { id, file: output, status: 'downloading', percent: 0, speed: '', eta: '', source: 'pixabay' };
       jobs.set(id, job);
       startDirectDownload(job, videoUrl);
+      return json(res, 202, { jobId: id, status: job.status, percent: 0 });
+    }
+    if (req.method === 'GET' && url.pathname === '/pexels/search') {
+      const apiKey = pexelsKey();
+      if (!apiKey) return json(res, 428, { error: 'Configure sua chave do Pexels antes de pesquisar.' });
+      const query = String(url.searchParams.get('q') || '').trim().slice(0, 100);
+      const page = Math.max(1, Math.min(80, Number(url.searchParams.get('page') || 1) || 1));
+      if (!query) throw new Error('Digite algo para pesquisar no Pexels.');
+      const cacheKey = `${query.toLocaleLowerCase('pt-BR')}|${page}`;
+      const cache = readJsonFile(pexelsCacheFile(), {});
+      const cached = cache[cacheKey];
+      if (cached && Date.now() - cached.savedAt < PEXELS_CACHE_MAX_AGE) return json(res, 200, { ...cached.data, cached: true });
+      const endpoint = new URL('https://api.pexels.com/v1/videos/search');
+      endpoint.searchParams.set('query', query);
+      endpoint.searchParams.set('locale', 'pt-BR');
+      endpoint.searchParams.set('page', String(page));
+      endpoint.searchParams.set('per_page', '12');
+      const result = await requestJson(endpoint, { headers: { Authorization: apiKey }, rateLimitMessage: 'O limite de pesquisas da sua chave do Pexels foi atingido.' });
+      const data = {
+        total: Number(result.total_results || 0), page,
+        items: (result.videos || []).map(video => ({
+          id: video.id,
+          title: `${query} · Pexels ${video.id}`,
+          pageURL: video.url,
+          thumbnail: video.image,
+          duration: video.duration,
+          width: video.width,
+          height: video.height,
+          user: video.user?.name || 'Autor do Pexels',
+          userURL: video.user?.url || '',
+          variants: (video.video_files || [])
+            .filter(file => file.file_type === 'video/mp4' && file.link && file.width && file.height)
+            .map(file => ({ name: file.quality || 'mp4', url: file.link, width: file.width, height: file.height, size: 0 }))
+            .sort((a, b) => {
+              const aPreferred = a.width >= 1280 && a.width > a.height ? 1 : 0;
+              const bPreferred = b.width >= 1280 && b.width > b.height ? 1 : 0;
+              return bPreferred - aPreferred || Math.abs(a.width - 1280) - Math.abs(b.width - 1280);
+            })
+        })).filter(item => item.variants.length)
+      };
+      cache[cacheKey] = { savedAt: Date.now(), data };
+      for (const [key, value] of Object.entries(cache)) if (!value?.savedAt || Date.now() - value.savedAt >= PEXELS_CACHE_MAX_AGE) delete cache[key];
+      writePrivateJson(pexelsCacheFile(), cache);
+      return json(res, 200, data);
+    }
+    if (req.method === 'POST' && url.pathname === '/pexels/download') {
+      const body = await readBody(req);
+      const videoUrl = String(body.url || '');
+      if (!pexelsKey()) return json(res, 428, { error: 'Configure sua chave do Pexels antes de baixar.' });
+      if (!isPexelsVideoUrl(videoUrl)) throw new Error('O endereço do vídeo não pertence ao Pexels.');
+      const id = `${Date.now()}${Math.random().toString(16).slice(2)}`;
+      const output = path.join(downloadsDir(), `${id}.mp4`);
+      const job = { id, file: output, status: 'downloading', percent: 0, speed: '', eta: '', source: 'pexels' };
+      jobs.set(id, job);
+      startDirectDownload(job, videoUrl, 'pexels');
       return json(res, 202, { jobId: id, status: job.status, percent: 0 });
     }
     if (req.method === 'POST' && url.pathname === '/analyze') {

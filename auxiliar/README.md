@@ -19,5 +19,7 @@ O instalador do macOS é experimental e não assinado. Na primeira abertura, pod
 - Não envia vídeos a servidores externos do projeto.
 - Guarda localmente a chave pessoal do Pixabay e mantém as pesquisas em cache por 24 horas.
 - Baixa diretamente os fundos escolhidos nos resultados do Pixabay.
+- Guarda localmente a chave pessoal do Pexels, mostra os créditos dos autores e mantém as pesquisas em cache por 24 horas.
+- Baixa diretamente os fundos escolhidos nos resultados do Pexels.
 
 Use apenas conteúdos que você tenha autorização para baixar.

@@ -7,6 +7,7 @@ type Job = { id: string; status: 'downloading' | 'ready' | 'error'; percent?: nu
 type Asset = { guid: string; title?: string; type?: string };
 type PixabayVariant = { name: string; url: string; width: number; height: number; size: number; thumbnail: string };
 type PixabayVideo = { id: number; pageURL: string; tags: string; duration: number; user: string; variants: PixabayVariant[] };
+type PexelsVideo = { id: number; title: string; pageURL: string; thumbnail: string; duration: number; width: number; height: number; user: string; userURL: string; variants: PixabayVariant[] };
 const HELPER = 'http://127.0.0.1:17843';
 
 async function helperRequest(path: string, method = 'GET', payload?: unknown) {
@@ -23,9 +24,10 @@ function formatDuration(value?: number) {
 }
 function formatSize(value?: number) { return value ? value >= 1048576 ? `${(value / 1048576).toFixed(1)} MB` : `${Math.round(value / 1024)} KB` : ''; }
 function pixabayTitle(item: PixabayVideo) { return item.tags.split(',')[0]?.trim() || `Fundo Pixabay ${item.id}`; }
+function pexelsTitle(item: PexelsVideo) { return item.title || `Fundo Pexels ${item.id}`; }
 
 export function App() {
-  const [mode, setMode] = useState<'youtube' | 'pixabay'>('youtube');
+  const [mode, setMode] = useState<'youtube' | 'pixabay' | 'pexels'>('youtube');
   const [url, setUrl] = useState('');
   const [helperOnline, setHelperOnline] = useState<boolean | null>(null);
   const [helperVersion, setHelperVersion] = useState('');
@@ -49,6 +51,14 @@ export function App() {
   const [pixabayPage, setPixabayPage] = useState(1);
   const [pixabayTotal, setPixabayTotal] = useState(0);
   const [pixabayHasSearched, setPixabayHasSearched] = useState(false);
+  const [pexelsConfigured, setPexelsConfigured] = useState<boolean | null>(null);
+  const [pexelsKey, setPexelsKey] = useState('');
+  const [pexelsQuery, setPexelsQuery] = useState('');
+  const [pexelsSearching, setPexelsSearching] = useState(false);
+  const [pexelsItems, setPexelsItems] = useState<PexelsVideo[]>([]);
+  const [pexelsPage, setPexelsPage] = useState(1);
+  const [pexelsTotal, setPexelsTotal] = useState(0);
+  const [pexelsHasSearched, setPexelsHasSearched] = useState(false);
   const [licenseExpanded, setLicenseExpanded] = useState(false);
   const [gridColumns, setGridColumns] = useState<2 | 3 | 4 | 5>(3);
 
@@ -59,6 +69,7 @@ export function App() {
   useEffect(() => {
     helperRequest('/health').then(applyHealth).catch((e) => { setHelperOnline(false); setHelperError(e.message || 'Auxiliar não encontrado.'); });
     helperRequest('/pixabay/settings').then((data) => setPixabayConfigured(!!data.configured)).catch(() => setPixabayConfigured(false));
+    helperRequest('/pexels/settings').then((data) => setPexelsConfigured(!!data.configured)).catch(() => setPexelsConfigured(false));
     return onMessage((raw) => {
       const msg = raw as any;
       if (msg.type === 'conversion-progress') { setConversionPercent(Number(msg.percent || 0)); setMessage(msg.message || 'Processando no Spresenter…'); }
@@ -137,20 +148,47 @@ export function App() {
     try { const next = await helperRequest('/pixabay/download', 'POST', { url: variant.url }); setJob({ id: next.jobId, status: next.status || 'downloading', percent: next.percent || 0 }); } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
   };
 
-  const busy = !!job || analyzing || pixabaySearching || savingKey;
+  const savePexelsKey = async () => {
+    setSavingKey(true); setError('');
+    try { await helperRequest('/pexels/settings', 'POST', { apiKey: pexelsKey }); setPexelsConfigured(true); setPexelsKey(''); } catch (e) { setError(e instanceof Error ? e.message : String(e)); } finally { setSavingKey(false); }
+  };
+  const openProvider = async (target: string) => {
+    try { await helperRequest('/open-external', 'POST', { url: target }); }
+    catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+  };
+  const searchPexels = async (page = 1) => {
+    setPexelsSearching(true); setError(''); setImported(null); setMessage('');
+    try { const data = await helperRequest(`/pexels/search?q=${encodeURIComponent(pexelsQuery.trim())}&page=${page}`); setPexelsItems(data.items || []); setPexelsTotal(data.total || 0); setPexelsPage(page); setPexelsHasSearched(true); } catch (e) { setError(e instanceof Error ? e.message : String(e)); } finally { setPexelsSearching(false); }
+  };
+  const changePexelsKey = async () => {
+    try { await helperRequest('/pexels/settings', 'DELETE'); setPexelsConfigured(false); setPexelsItems([]); setPexelsHasSearched(false); }
+    catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+  };
+  const importPexels = async (item: PexelsVideo) => {
+    const variant = item.variants[0]; if (!variant) return;
+    resetProgress(); setDestination('backgroundVideo'); setInfo({ title: pexelsTitle(item), uploader: item.user, thumbnail: item.thumbnail, duration: item.duration }); setMessage('Baixando o fundo do Pexels…');
+    try { const next = await helperRequest('/pexels/download', 'POST', { url: variant.url }); setJob({ id: next.jobId, status: next.status || 'downloading', percent: next.percent || 0 }); } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+  };
+
+  const busy = !!job || analyzing || pixabaySearching || pexelsSearching || savingKey;
   return <Root>
     <Header title="Importador de Vídeos" subtitle="Importe por link ou encontre fundos gratuitos para sua projeção." />
     <Panel label="Auxiliar local"><Row style={{ alignItems: 'center' }}><div style={{ flex: 1 }}><StatusIndicator state={helperOnline && ffmpegFound ? 'ok' : helperOnline === false ? 'error' : 'warn'} label={helperOnline ? 'Auxiliar conectado' : helperOnline === false ? 'Auxiliar desconectado' : 'Verificando…'} detail={helperOnline && helperVersion ? `yt-dlp ${helperVersion} · ${ffmpegFound ? 'FFmpeg pronto' : 'FFmpeg não localizado'}` : undefined} /></div><Button size="sm" onClick={checkHelper}>Verificar</Button></Row>{helperOnline === false && <p className="hint">Instale e abra o <strong>Auxiliar do Importador para Spresenter</strong>.</p>}{helperError && <p className="error-detail">{helperError}</p>}</Panel>
-    <div className="source-tabs"><button disabled={busy} className={mode === 'youtube' ? 'active' : ''} onClick={() => { setMode('youtube'); resetProgress(); }}>Link do YouTube</button><button disabled={busy} className={mode === 'pixabay' ? 'active' : ''} onClick={() => { setMode('pixabay'); resetProgress(); }}>Pesquisar no Pixabay</button></div>
+    <div className="source-tabs"><button disabled={busy} className={mode === 'youtube' ? 'active' : ''} onClick={() => { setMode('youtube'); resetProgress(); }}>Link do YouTube</button><button disabled={busy} className={mode === 'pixabay' ? 'active' : ''} onClick={() => { setMode('pixabay'); resetProgress(); }}>Pesquisar no Pixabay</button><button disabled={busy} className={mode === 'pexels' ? 'active' : ''} onClick={() => { setMode('pexels'); resetProgress(); }}>Pesquisar no Pexels</button></div>
 
     {mode === 'youtube' ? <>
       <Panel label="Link do YouTube"><Stack><Field label="URL do vídeo" hint={!url || validUrl ? '' : 'Informe um endereço do YouTube ou youtu.be.'}><TextInput value={url} onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && validUrl && helperOnline && analyze()} placeholder="https://www.youtube.com/watch?v=…" /></Field><Button variant="primary" disabled={!validUrl || busy} onClick={analyze}>{analyzing ? 'Analisando…' : 'Analisar vídeo'}</Button></Stack></Panel>
       {info && !job && !imported && <Panel label="Vídeo encontrado"><div className="video-card">{info.thumbnail && <img src={info.thumbnail} alt="Miniatura" />}<div className="video-meta"><strong>{info.title}</strong><span>{[info.uploader, formatDuration(info.duration)].filter(Boolean).join(' · ')}</span></div></div><Row style={{ marginTop: 12 }}><Field label="Importar para"><Select value={destination} onChange={(e) => setDestination(e.target.value as any)}><option value="backgroundVideo">Fundos</option><option value="video">Vídeos</option></Select></Field><Field label="Qualidade"><Select value={quality} onChange={(e) => setQuality(e.target.value as any)}><option value="compatible">Melhor compatível (até 720p)</option><option value="light">Leve (até 360p)</option></Select></Field></Row><Button variant="success" onClick={downloadYoutube}>Baixar e importar</Button></Panel>}
-    </> : <>
+    </> : mode === 'pixabay' ? <>
       {pixabayConfigured === false && <Panel label="Conectar ao Pixabay"><Stack><p className="hint pixabay-intro">Use gratuitamente sua chave pessoal da API. Ela será guardada somente neste computador.</p><Field label="Chave da API" hint="Encontre sua chave em pixabay.com/api/docs"><TextInput type="password" value={pixabayKey} onChange={(e) => setPixabayKey(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && pixabayKey.trim() && !savingKey && savePixabayKey()} placeholder="Cole sua chave do Pixabay" /></Field><Row><Button variant="primary" disabled={!pixabayKey.trim() || savingKey} onClick={savePixabayKey}>{savingKey ? 'Verificando…' : 'Salvar chave'}</Button><button className="external-link" type="button" onClick={() => openPixabay('https://pixabay.com/api/docs/')}>Obter chave gratuita</button></Row></Stack></Panel>}
       {pixabayConfigured && <Panel label="Fundos gratuitos do Pixabay"><Stack><Row><div style={{ flex: 1 }}><TextInput value={pixabayQuery} onChange={(e) => setPixabayQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && pixabayQuery.trim() && searchPixabay(1)} placeholder="Ex.: natureza, céu, partículas, igreja…" /></div><Button variant="primary" disabled={!pixabayQuery.trim() || busy} onClick={() => searchPixabay(1)}>{pixabaySearching ? 'Pesquisando…' : 'Pesquisar'}</Button></Row><div className="license-notice"><strong>Conteúdo gratuito do Pixabay</strong><span>Permitido para projeções e apresentações. Não revenda ou redistribua o vídeo isoladamente.</span><button className="inline-link" onClick={() => setLicenseExpanded((value) => !value)}>{licenseExpanded ? 'Ocultar informações' : 'Entenda como pode usar'}</button>{licenseExpanded && <div className="license-details"><p>Você pode usar, editar e adaptar os vídeos gratuitamente. O crédito ao autor não é obrigatório, mas é apreciado.</p><p>Conteúdos com pessoas, marcas ou logotipos reconhecíveis podem exigir cuidados adicionais. Não use o conteúdo de forma enganosa, ilegal ou como uma marca própria.</p><button className="inline-link" onClick={() => openPixabay('https://pixabay.com/service/license-summary/')}>Ver licença completa do Pixabay</button></div>}</div><Row className="pixabay-credit"><span>Vídeos fornecidos por <button className="inline-link" onClick={() => openPixabay('https://pixabay.com/')}>Pixabay</button> · conteúdo seguro · resolução mínima HD</span><button className="link-button" onClick={changePixabayKey}>Trocar chave</button></Row></Stack></Panel>}
       {pixabayHasSearched && !pixabaySearching && !pixabayItems.length && <Panel label="Resultados"><p className="empty-state">Nenhum fundo HD foi encontrado. Tente usar outras palavras.</p></Panel>}
       {!!pixabayItems.length && <Panel label={`${pixabayTotal} resultados encontrados`}><Row className="results-toolbar"><span>12 vídeos nesta página</span><label>Colunas <Select value={gridColumns} onChange={(e) => setGridColumns(Number(e.target.value) as 2 | 3 | 4 | 5)}><option value={2}>2</option><option value={3}>3</option><option value={4}>4</option><option value={5}>5</option></Select></label></Row><div className={`pixabay-grid columns-${gridColumns}`}>{pixabayItems.map((item) => { const variant = item.variants.find((value) => value.name === 'small') || item.variants[0]; return <article className="pixabay-card" key={item.id}><img src={variant.thumbnail} alt={item.tags} /><div className="pixabay-card-body"><strong>{pixabayTitle(item)}</strong><span>{item.user} · {formatDuration(item.duration)}</span><span>{variant.width}×{variant.height} · {formatSize(variant.size)}</span><Button size="sm" variant="success" disabled={busy} onClick={() => importPixabay(item)}>Adicionar aos Fundos</Button><button className="card-link" onClick={() => openPixabay(item.pageURL)}>Ver no Pixabay</button></div></article>; })}</div><Row className="pagination"><Button size="sm" disabled={pixabayPage <= 1 || busy} onClick={() => searchPixabay(pixabayPage - 1)}>Anterior</Button><span>Página {pixabayPage}</span><Button size="sm" disabled={pixabayPage >= 25 || pixabayPage * 12 >= pixabayTotal || busy} onClick={() => searchPixabay(pixabayPage + 1)}>Próxima</Button></Row></Panel>}
+    </> : <>
+      {pexelsConfigured === false && <Panel label="Conectar ao Pexels"><Stack><p className="hint pixabay-intro">Use gratuitamente sua chave pessoal da API. Ela será guardada somente neste computador.</p><Field label="Chave da API" hint="Crie sua conta e obtenha a chave em pexels.com/api"><TextInput type="password" value={pexelsKey} onChange={(e) => setPexelsKey(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && pexelsKey.trim() && !savingKey && savePexelsKey()} placeholder="Cole sua chave do Pexels" /></Field><Row><Button variant="primary" disabled={!pexelsKey.trim() || savingKey} onClick={savePexelsKey}>{savingKey ? 'Verificando…' : 'Salvar chave'}</Button><button className="external-link" type="button" onClick={() => openProvider('https://www.pexels.com/api/')}>Obter chave gratuita</button></Row></Stack></Panel>}
+      {pexelsConfigured && <Panel label="Vídeos gratuitos do Pexels"><Stack><Row><div style={{ flex: 1 }}><TextInput value={pexelsQuery} onChange={(e) => setPexelsQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && pexelsQuery.trim() && searchPexels(1)} placeholder="Pesquise livremente. Ex.: igreja, cruz, louvor…" /></div><Button variant="primary" disabled={!pexelsQuery.trim() || busy} onClick={() => searchPexels(1)}>{pexelsSearching ? 'Pesquisando…' : 'Pesquisar'}</Button></Row><p className="hint search-tip">Dica: você também pode pesquisar em inglês para encontrar outras opções.</p><div className="license-notice pexels-license"><strong>Conteúdo gratuito do Pexels</strong><span>Pode ser usado e adaptado em projeções. Não revenda nem redistribua o vídeo isoladamente.</span><button className="inline-link" onClick={() => openProvider('https://www.pexels.com/license/')}>Ver licença completa do Pexels</button></div><Row className="pixabay-credit"><span>Vídeos fornecidos por <button className="inline-link" onClick={() => openProvider('https://www.pexels.com/')}>Pexels</button> · o autor aparece em cada resultado</span><button className="link-button" onClick={changePexelsKey}>Trocar chave</button></Row></Stack></Panel>}
+      {pexelsHasSearched && !pexelsSearching && !pexelsItems.length && <Panel label="Resultados"><p className="empty-state">Nenhum vídeo foi encontrado. Tente usar outras palavras.</p></Panel>}
+      {!!pexelsItems.length && <Panel label={`${pexelsTotal} resultados encontrados`}><Row className="results-toolbar"><span>{pexelsItems.length} vídeos nesta página</span><label>Colunas <Select value={gridColumns} onChange={(e) => setGridColumns(Number(e.target.value) as 2 | 3 | 4 | 5)}><option value={2}>2</option><option value={3}>3</option><option value={4}>4</option><option value={5}>5</option></Select></label></Row><div className={`pixabay-grid columns-${gridColumns}`}>{pexelsItems.map((item) => { const variant = item.variants[0]; return <article className="pixabay-card" key={item.id}><img src={item.thumbnail} alt={`Prévia do vídeo de ${item.user}`} /><div className="pixabay-card-body"><strong>{pexelsTitle(item)}</strong><span>Vídeo de <button className="author-link" onClick={() => openProvider(item.userURL)}>{item.user}</button> no Pexels</span><span>{variant.width}×{variant.height} · {formatDuration(item.duration)}</span><Button size="sm" variant="success" disabled={busy} onClick={() => importPexels(item)}>Adicionar aos Fundos</Button><button className="card-link" onClick={() => openProvider(item.pageURL)}>Ver no Pexels</button></div></article>; })}</div><Row className="pagination"><Button size="sm" disabled={pexelsPage <= 1 || busy} onClick={() => searchPexels(pexelsPage - 1)}>Anterior</Button><span>Página {pexelsPage}</span><Button size="sm" disabled={pexelsPage * 12 >= pexelsTotal || busy} onClick={() => searchPexels(pexelsPage + 1)}>Próxima</Button></Row></Panel>}
     </>}
 
     {(job || message || error || imported) && <Panel label="Andamento">{job?.status === 'downloading' && <><p className="phase-label">1 de 2 · Download</p><div className="progress"><div style={{ width: `${Math.max(2, Math.min(100, job.percent || 0))}%` }} /></div><Row className="progress-label"><strong>{Math.round(job.percent || 0)}%</strong><span>{[job.speed, job.eta && `Restante: ${job.eta}`].filter(Boolean).join(' · ')}</span></Row></>}{conversionPercent !== null && !imported && <><p className="phase-label">2 de 2 · Processamento no Spresenter</p><div className="progress conversion"><div style={{ width: `${Math.max(2, Math.min(100, conversionPercent))}%` }} /></div><Row className="progress-label"><strong>{Math.round(conversionPercent)}%</strong><span>{destination === 'video' ? 'Gerando o pacote .scp' : 'Adicionando aos Fundos'}</span></Row></>}{error ? <StatusIndicator state="error" label="Não foi possível concluir" detail={error} /> : <StatusIndicator state={imported ? 'ok' : 'warn'} label={imported ? 'Importação concluída' : message || 'Processando…'} detail={imported?.title} />}</Panel>}
