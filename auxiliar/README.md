@@ -17,5 +17,7 @@ O instalador do macOS é experimental e não assinado. Na primeira abertura, pod
 - Localiza o FFmpeg incluído no Spresenter.
 - Guarda downloads temporários na pasta de dados do aplicativo e os apaga após a importação.
 - Não envia vídeos a servidores externos do projeto.
+- Guarda localmente a chave pessoal do Pixabay e mantém as pesquisas em cache por 24 horas.
+- Baixa diretamente os fundos escolhidos nos resultados do Pixabay.
 
 Use apenas conteúdos que você tenha autorização para baixar.

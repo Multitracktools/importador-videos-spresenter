@@ -1,12 +1,12 @@
-# Importador de Vídeos — protótipo 0.2.7
+# Importador de Vídeos — protótipo 0.3.0
 
-Protótipo experimental para baixar um vídeo por link do YouTube e importá-lo nas categorias **Fundos** ou **Vídeos** do Spresenter.
+Protótipo experimental para baixar um vídeo por link do YouTube, pesquisar fundos gratuitos no Pixabay e importar o resultado no Spresenter.
 
 ## Instalação
 
 O kit possui duas partes:
 
-1. Instale o ZIP da versão 0.2.7 em **Configurações → Plugins → Instalar**.
+1. Instale o ZIP da versão 0.3.0 em **Configurações → Plugins → Instalar**.
 2. Instale e abra uma vez o **Auxiliar do Importador para Spresenter** correspondente ao seu sistema.
 3. Nas próximas inicializações, o auxiliar abrirá automaticamente em segundo plano.
 4. Na primeira execução, o auxiliar baixa o `yt-dlp` oficial.
@@ -19,7 +19,9 @@ O kit possui duas partes:
 4. Escolha **Fundos** ou **Vídeos** e a qualidade.
 5. Clique em **Baixar e importar**.
 
-A versão 0.2.7 utiliza um aplicativo auxiliar em segundo plano no Windows ou macOS. O painel mostra separadamente o progresso do download e o processamento. Fundos recebem o MP4 diretamente. Na categoria Vídeos, o auxiliar usa o mesmo fluxo interno do Spresenter para criar o pacote e registrá-lo no catálogo da biblioteca.
+Para usar o Pixabay, abra a aba **Pesquisar no Pixabay**, informe sua chave gratuita na primeira utilização, pesquise um tema e escolha **Adicionar aos Fundos**.
+
+A versão 0.3.0 utiliza um aplicativo auxiliar em segundo plano no Windows ou macOS. O painel mostra separadamente o progresso do download e o processamento. Fundos recebem o MP4 diretamente. Na categoria Vídeos, o auxiliar usa o mesmo fluxo interno do Spresenter para criar o pacote e registrá-lo no catálogo da biblioteca.
 
 ## Observações
 

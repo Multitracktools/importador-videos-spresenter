@@ -7,6 +7,7 @@ const os = require('os');
 const { execFile, spawn } = require('child_process');
 
 const PORT = 17843;
+const PIXABAY_CACHE_MAX_AGE = 24 * 60 * 60 * 1000;
 let tray;
 let server;
 let ready = false;
@@ -18,6 +19,8 @@ const jobs = new Map();
 const dataDir = () => app.getPath('userData');
 const binDir = () => path.join(dataDir(), 'bin');
 const downloadsDir = () => path.join(dataDir(), 'downloads');
+const pixabaySettingsFile = () => path.join(dataDir(), 'pixabay.json');
+const pixabayCacheFile = () => path.join(dataDir(), 'pixabay-cache.json');
 const exeName = () => process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp';
 const ytdlpUrl = () => process.platform === 'win32'
   ? 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe'
@@ -38,6 +41,84 @@ function download(url, destination, redirects = 0) {
       file.on('error', reject);
     }).on('error', reject);
   });
+}
+
+function readJsonFile(file, fallback) {
+  try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return fallback; }
+}
+
+function writePrivateJson(file, value) {
+  fs.writeFileSync(file, JSON.stringify(value, null, 2), { mode: 0o600 });
+  try { fs.chmodSync(file, 0o600); } catch {}
+}
+
+function pixabayKey() {
+  return String(readJsonFile(pixabaySettingsFile(), {}).apiKey || '').trim();
+}
+
+function requestJson(url, redirects = 0) {
+  return new Promise((resolve, reject) => {
+    if (redirects > 5) return reject(new Error('Redirecionamentos demais ao acessar o Pixabay.'));
+    https.get(url, { headers: { 'User-Agent': 'Spresenter-Video-Importer/0.3.0' } }, response => {
+      if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+        response.resume();
+        return requestJson(new URL(response.headers.location, url).toString(), redirects + 1).then(resolve, reject);
+      }
+      const chunks = [];
+      response.on('data', chunk => chunks.push(chunk));
+      response.on('end', () => {
+        const raw = Buffer.concat(chunks).toString('utf8');
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+          const message = response.statusCode === 429 ? 'O limite temporário de pesquisas do Pixabay foi atingido. Aguarde um minuto.' : raw;
+          return reject(new Error(message || `Pixabay respondeu HTTP ${response.statusCode}.`));
+        }
+        try { resolve(JSON.parse(raw)); } catch { reject(new Error('O Pixabay retornou uma resposta inválida.')); }
+      });
+    }).on('error', error => reject(new Error(`Não foi possível acessar o Pixabay. ${error.message}`)));
+  });
+}
+
+function isPixabayVideoUrl(value) {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === 'https:' && (parsed.hostname === 'pixabay.com' || parsed.hostname.endsWith('.pixabay.com'));
+  } catch { return false; }
+}
+
+function startDirectDownload(job, url, redirects = 0) {
+  if (redirects > 5) return Object.assign(job, { status: 'error', error: 'Redirecionamentos demais ao baixar o vídeo.' });
+  const request = https.get(url, { headers: { 'User-Agent': 'Spresenter-Video-Importer/0.3.0' } }, response => {
+    if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+      response.resume();
+      const next = new URL(response.headers.location, url).toString();
+      if (!isPixabayVideoUrl(next)) return Object.assign(job, { status: 'error', error: 'O Pixabay redirecionou para um endereço não permitido.' });
+      return startDirectDownload(job, next, redirects + 1);
+    }
+    if (response.statusCode !== 200) {
+      response.resume();
+      return Object.assign(job, { status: 'error', error: `Falha ao baixar do Pixabay: HTTP ${response.statusCode}.` });
+    }
+    const total = Number(response.headers['content-length'] || 0);
+    let received = 0;
+    let lastAt = Date.now();
+    let lastBytes = 0;
+    const file = fs.createWriteStream(job.file);
+    response.on('data', chunk => {
+      received += chunk.length;
+      if (total) job.percent = Math.min(99, Math.round((received / total) * 100));
+      const now = Date.now();
+      if (now - lastAt >= 1000) {
+        const bytesPerSecond = ((received - lastBytes) * 1000) / (now - lastAt);
+        job.speed = bytesPerSecond >= 1024 * 1024 ? `${(bytesPerSecond / 1024 / 1024).toFixed(1)} MiB/s` : `${Math.round(bytesPerSecond / 1024)} KiB/s`;
+        if (total && bytesPerSecond > 0) job.eta = `${Math.ceil((total - received) / bytesPerSecond)}s`;
+        lastAt = now; lastBytes = received;
+      }
+    });
+    response.pipe(file);
+    file.on('finish', () => file.close(() => Object.assign(job, { status: 'ready', percent: 100, speed: '', eta: '' })));
+    file.on('error', error => Object.assign(job, { status: 'error', error: error.message }));
+  });
+  request.on('error', error => Object.assign(job, { status: 'error', error: error.message }));
 }
 
 function run(file, args, timeout = 0) {
@@ -169,6 +250,73 @@ async function handler(req, res) {
       let version = '';
       if (ready) version = String(await run(ytdlp, ['--version'], 10000)).trim();
       return json(res, 200, { ok: ready, ytDlpVersion: version, ffmpegFound: !!ffmpeg, desktopHelper: true, error: lastError });
+    }
+    if (req.method === 'GET' && url.pathname === '/pixabay/settings') {
+      return json(res, 200, { configured: !!pixabayKey() });
+    }
+    if (req.method === 'POST' && url.pathname === '/pixabay/settings') {
+      const body = await readBody(req);
+      const apiKey = String(body.apiKey || '').trim();
+      if (!apiKey || apiKey.length > 200) throw new Error('Informe uma chave válida do Pixabay.');
+      const check = new URL('https://pixabay.com/api/videos/');
+      check.searchParams.set('key', apiKey);
+      check.searchParams.set('q', 'natureza');
+      check.searchParams.set('per_page', '3');
+      check.searchParams.set('safesearch', 'true');
+      await requestJson(check);
+      writePrivateJson(pixabaySettingsFile(), { apiKey });
+      return json(res, 200, { configured: true });
+    }
+    if (req.method === 'DELETE' && url.pathname === '/pixabay/settings') {
+      if (fs.existsSync(pixabaySettingsFile())) fs.unlinkSync(pixabaySettingsFile());
+      return json(res, 200, { configured: false });
+    }
+    if (req.method === 'GET' && url.pathname === '/pixabay/search') {
+      const apiKey = pixabayKey();
+      if (!apiKey) return json(res, 428, { error: 'Configure sua chave do Pixabay antes de pesquisar.' });
+      const query = String(url.searchParams.get('q') || '').trim().slice(0, 100);
+      const page = Math.max(1, Math.min(25, Number(url.searchParams.get('page') || 1) || 1));
+      if (!query) throw new Error('Digite algo para pesquisar no Pixabay.');
+      const cacheKey = `${query.toLocaleLowerCase('pt-BR')}|${page}`;
+      const cache = readJsonFile(pixabayCacheFile(), {});
+      const cached = cache[cacheKey];
+      if (cached && Date.now() - cached.savedAt < PIXABAY_CACHE_MAX_AGE) return json(res, 200, { ...cached.data, cached: true });
+      const endpoint = new URL('https://pixabay.com/api/videos/');
+      endpoint.searchParams.set('key', apiKey);
+      endpoint.searchParams.set('q', query);
+      endpoint.searchParams.set('lang', 'pt');
+      endpoint.searchParams.set('video_type', 'all');
+      endpoint.searchParams.set('category', 'backgrounds');
+      endpoint.searchParams.set('min_width', '1280');
+      endpoint.searchParams.set('min_height', '720');
+      endpoint.searchParams.set('safesearch', 'true');
+      endpoint.searchParams.set('order', 'popular');
+      endpoint.searchParams.set('page', String(page));
+      endpoint.searchParams.set('per_page', '12');
+      const result = await requestJson(endpoint);
+      const data = {
+        total: Number(result.totalHits || 0), page,
+        items: (result.hits || []).map(hit => ({
+          id: hit.id, pageURL: hit.pageURL, tags: hit.tags, duration: hit.duration, user: hit.user,
+          variants: ['small', 'medium', 'large'].map(name => ({ name, ...(hit.videos?.[name] || {}) })).filter(item => item.url && item.width >= 1280)
+        })).filter(item => item.variants.length)
+      };
+      cache[cacheKey] = { savedAt: Date.now(), data };
+      for (const [key, value] of Object.entries(cache)) if (!value?.savedAt || Date.now() - value.savedAt >= PIXABAY_CACHE_MAX_AGE) delete cache[key];
+      writePrivateJson(pixabayCacheFile(), cache);
+      return json(res, 200, data);
+    }
+    if (req.method === 'POST' && url.pathname === '/pixabay/download') {
+      const body = await readBody(req);
+      const videoUrl = String(body.url || '');
+      if (!pixabayKey()) return json(res, 428, { error: 'Configure sua chave do Pixabay antes de baixar.' });
+      if (!isPixabayVideoUrl(videoUrl)) throw new Error('O endereço do vídeo não pertence ao Pixabay.');
+      const id = `${Date.now()}${Math.random().toString(16).slice(2)}`;
+      const output = path.join(downloadsDir(), `${id}.mp4`);
+      const job = { id, file: output, status: 'downloading', percent: 0, speed: '', eta: '', source: 'pixabay' };
+      jobs.set(id, job);
+      startDirectDownload(job, videoUrl);
+      return json(res, 202, { jobId: id, status: job.status, percent: 0 });
     }
     if (req.method === 'POST' && url.pathname === '/analyze') {
       const body = await readBody(req);

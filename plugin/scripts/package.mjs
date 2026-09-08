@@ -36,6 +36,10 @@ for (const extra of ['README.md', 'LICENSE']) {
   const p = path.join(root, extra);
   if (fs.existsSync(p)) zip.addLocalFile(p);
 }
+const repositoryLicense = path.join(root, '..', 'LICENSE');
+if (!fs.existsSync(path.join(root, 'LICENSE')) && fs.existsSync(repositoryLicense)) {
+  zip.addLocalFile(repositoryLicense);
+}
 
 const outDir = path.join(root, 'release');
 fs.mkdirSync(outDir, { recursive: true });

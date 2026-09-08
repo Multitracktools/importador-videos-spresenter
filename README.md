@@ -1,6 +1,6 @@
 # Importador de Vídeos para Spresenter
 
-Plugin gratuito e comunitário para analisar um link, baixar um vídeo autorizado e importá-lo diretamente para as categorias **Fundos** ou **Vídeos** do Spresenter.
+Plugin gratuito e comunitário para analisar um link, baixar um vídeo autorizado e importá-lo diretamente para as categorias **Fundos** ou **Vídeos** do Spresenter. Também pesquisa vídeos gratuitos no Pixabay e os adiciona aos **Fundos**.
 
 ## Estrutura
 
@@ -16,6 +16,14 @@ Baixe os arquivos na página **Releases** do GitHub:
 2. Abra o auxiliar uma vez. Nas próximas vezes ele iniciará automaticamente.
 3. Instale o ZIP do plugin em **Spresenter > Configurações > Plugins > Instalar**.
 4. Abra o painel **Importador de Vídeos**, cole o link e escolha entre Fundos e Vídeos.
+
+### Pesquisa no Pixabay
+
+1. Crie uma conta gratuita e obtenha sua chave em **pixabay.com/api/docs**.
+2. Abra a aba **Pesquisar no Pixabay** e salve a chave na primeira utilização.
+3. Pesquise um tema e clique em **Adicionar aos Fundos** no vídeo desejado.
+
+A chave fica somente na pasta de dados local do auxiliar. As pesquisas usam conteúdo seguro, resolução mínima HD e cache local de 24 horas.
 
 O macOS poderá mostrar um aviso de desenvolvedor não identificado enquanto o aplicativo não estiver assinado e notarizado. Nesse caso, use **Ajustes do Sistema > Privacidade e Segurança > Abrir Mesmo Assim**.
 
