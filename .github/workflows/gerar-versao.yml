@@ -3,6 +3,8 @@ name: Gerar versão
 on:
   workflow_dispatch:
   push:
+    branches:
+      - 'feat/pixabay-search'
     tags:
       - 'v*'
 
@@ -88,7 +90,7 @@ jobs:
   publicar:
     name: Publicar no GitHub Releases
 
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.ref == 'refs/heads/feat/pixabay-search'
 
     needs:
       - plugin
@@ -103,5 +105,8 @@ jobs:
 
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: v0.3.3
+          target_commitish: main
+          name: Importador de Vídeos v0.3.3
           generate_release_notes: true
           files: arquivos/**/*
