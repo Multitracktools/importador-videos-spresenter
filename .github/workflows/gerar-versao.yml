@@ -3,8 +3,6 @@ name: Gerar versão
 on:
   workflow_dispatch:
   push:
-    branches:
-      - 'feat/pixabay-search'
     tags:
       - 'v*'
 
