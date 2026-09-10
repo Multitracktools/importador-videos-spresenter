@@ -1,65 +1,86 @@
-# Importador de Vídeos para Spresenter
+# Importador de Vídeos — Zosma Labs
 
-Plugin gratuito e comunitário para analisar um link, baixar um vídeo autorizado e importá-lo diretamente para as categorias **Fundos** ou **Vídeos** do Spresenter. Também pesquisa vídeos gratuitos no Pixabay e no Pexels e os adiciona aos **Fundos**.
+**Pesquise, baixe e importe vídeos para o SPresenter sem sair do fluxo de trabalho.**
 
-## Estrutura
+Plugin gratuito da [Zosma Labs](https://zosma.com.br) para analisar links autorizados, baixar vídeos e importá-los para as categorias **Fundos** ou **Vídeos** do SPresenter. Também permite pesquisar vídeos gratuitos no Pixabay e no Pexels e adicioná-los diretamente aos Fundos.
 
-- `plugin/`: plugin instalado dentro do Spresenter.
-- `auxiliar/`: aplicativo local para Windows e macOS. Ele inicia junto com o sistema e permanece na bandeja ou barra de menus.
-- `.github/workflows/gerar-versao.yml`: compila automaticamente o plugin e os instaladores.
+> **Versão atual: 0.3.3**
 
-## Instalação para o usuário
+[Baixar a versão mais recente](https://github.com/zosmalabs/importador-videos-spresenter/releases/latest) · [Tutorial](https://youtu.be/kxIf_o-fvas) · [Site da Zosma](https://zosma.com.br)
 
-Baixe os arquivos na página **Releases** do GitHub:
+## Principais recursos
 
-1. Instale o **Auxiliar do Importador para Spresenter** correspondente ao sistema.
-2. Abra o auxiliar uma vez. Nas próximas vezes ele iniciará automaticamente.
-3. Instale o ZIP do plugin em **Spresenter > Configurações > Plugins > Instalar**.
-4. Abra o painel **Importador de Vídeos**, cole o link e escolha entre Fundos e Vídeos.
+- Importação por link do YouTube;
+- pesquisa integrada no Pixabay e no Pexels;
+- importação direta para **Fundos** ou **Vídeos**;
+- seleção de qualidade em HD, Full HD, 4K ou melhor disponível;
+- progresso de download e processamento;
+- auxiliar local para Windows e macOS;
+- chaves de API armazenadas somente no computador do usuário;
+- processamento local, sem servidor da Zosma para receber os vídeos baixados.
 
-### Pesquisa no Pixabay
+## Compatibilidade
 
-1. Crie uma conta gratuita e obtenha sua chave em **pixabay.com/api/docs**.
-2. Abra a aba **Pesquisar no Pixabay** e salve a chave na primeira utilização.
-3. Pesquise um tema e clique em **Adicionar aos Fundos** no vídeo desejado.
+- SPresenter 0.3.45 ou mais recente;
+- Windows;
+- macOS Intel;
+- macOS Apple Silicon.
 
-A chave fica somente na pasta de dados local do auxiliar. As pesquisas usam conteúdo seguro, somente vídeos horizontais, resolução selecionável entre HD, Full HD, 4K ou melhor disponível e cache local de 24 horas.
+## Como funciona
 
-### Pesquisa no Pexels
+O projeto é composto por duas partes:
 
-1. Crie uma conta gratuita e obtenha sua chave em **pexels.com/api**.
-2. Abra a aba **Pesquisar no Pexels** e salve a chave na primeira utilização.
-3. Pesquise livremente por texto e clique em **Adicionar aos Fundos** no vídeo desejado.
+- `plugin/`: plugin instalado dentro do SPresenter;
+- `auxiliar/`: aplicativo local que realiza download e processamento e se comunica com o plugin pela própria máquina.
 
-A chave pessoal também fica somente no computador. O plugin mostra o crédito do autor em cada resultado, pesquisa somente vídeos horizontais, permite selecionar a resolução e mantém as pesquisas em cache por 24 horas.
+O auxiliar inicia junto com o sistema e permanece disponível na bandeja do Windows ou barra de menus do macOS.
 
-O macOS poderá mostrar um aviso de desenvolvedor não identificado enquanto o aplicativo não estiver assinado e notarizado. Nesse caso, use **Ajustes do Sistema > Privacidade e Segurança > Abrir Mesmo Assim**.
+## Instalação
 
-## Gerar uma versão para teste
+Acesse a página de [Releases](https://github.com/zosmalabs/importador-videos-spresenter/releases/latest) e baixe os arquivos correspondentes ao seu sistema.
 
-Abra **Actions > Gerar versão > Run workflow**. Ao terminar, os arquivos estarão na seção **Artifacts** da execução.
+### Windows
 
-## Publicar uma versão
+1. Instale **Auxiliar-Importador-Spresenter-Windows**.
+2. Instale o ZIP do plugin no SPresenter em **Configurações → Plugins → Instalar**.
+3. Abra o painel **Importador de Vídeos** e confirme que aparece **Auxiliar conectado**.
 
-Crie uma tag no formato `v0.2.6`. A automação compilará tudo e criará uma publicação em **Releases** contendo:
+### macOS
+
+1. Baixe o DMG correspondente ao seu processador: Apple Silicon ou Intel.
+2. Instale e abra o auxiliar.
+3. Instale o ZIP do plugin no SPresenter.
+
+Como o auxiliar ainda não possui assinatura e notarização da Apple, o macOS pode exibir um aviso de desenvolvedor não identificado. Nesse caso, use **Ajustes do Sistema → Privacidade e Segurança → Abrir Mesmo Assim**.
+
+## Pixabay e Pexels
+
+As pesquisas utilizam chaves pessoais das APIs dessas plataformas. Elas são salvas apenas na pasta local do auxiliar e não são incluídas no plugin nem publicadas no GitHub.
+
+Os resultados priorizam vídeos horizontais adequados para projeção e permitem selecionar a resolução desejada antes da importação.
+
+## Desenvolvimento e publicação
+
+O workflow `.github/workflows/gerar-versao.yml` compila automaticamente o plugin e os instaladores.
+
+Para gerar uma versão de teste, use **Actions → Gerar versão → Run workflow**. Os arquivos ficarão disponíveis como artifacts da execução.
+
+Ao publicar uma tag no formato `v0.3.3`, a automação gera a release com:
 
 - ZIP do plugin;
 - instalador EXE do Windows;
 - DMG do macOS Intel;
 - DMG do macOS Apple Silicon.
 
-## Andamento da importação
-
-- **Download:** porcentagem, velocidade e tempo restante informados pelo `yt-dlp`.
-- **Processamento no Spresenter:** andamento estimado enquanto o aplicativo gera o pacote interno `.scp`. A importação só é confirmada quando esse pacote aparece na biblioteca.
-
-## Privacidade
-
-O processamento ocorre na própria máquina. O projeto não mantém servidor para receber os vídeos baixados.
-
 ## Uso responsável
 
-Use somente vídeos próprios, em domínio público ou para os quais você tenha autorização de download e utilização. O usuário é responsável por respeitar direitos autorais e os termos da plataforma de origem.
+Use somente vídeos próprios, em domínio público ou para os quais você tenha autorização de download e utilização. O usuário é responsável por respeitar direitos autorais e os termos das plataformas de origem.
+
+## Zosma Labs
+
+**Ideias transformadas em software.**
+
+[zosma.com.br](https://zosma.com.br)
 
 ## Licença
 
