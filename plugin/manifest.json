@@ -1,9 +1,9 @@
 {
-  "id": "com.comunidade.spresenter.importador-videos",
+  "id": "com.zosmalabs.importador-videos",
   "name": "Importador de Vídeos",
   "version": "0.3.3",
   "description": "Importa vídeos do YouTube e encontra fundos gratuitos no Pixabay e no Pexels.",
-  "author": "",
+  "author": "Zosma Labs",
   "minAppVersion": "0.3.45",
   "sdk": "0.3.45",
   "main": "dist/code.js",

@@ -3,7 +3,7 @@
   "version": "0.3.3",
   "description": "Auxiliar local do Importador de Vídeos para Spresenter",
   "main": "src/main.cjs",
-  "author": "Comunidade Spresenter",
+  "author": "Zosma Labs",
   "license": "MIT",
   "scripts": {
     "start": "electron .",
